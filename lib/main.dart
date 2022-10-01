@@ -191,6 +191,7 @@ onSmsRecieved(SmsMessage message) async {
   String? replyNumber;
   String? replyMessage;
   String? str;
+  String deviceName = "";
   try {
     var url = "";
     try {
@@ -200,7 +201,7 @@ onSmsRecieved(SmsMessage message) async {
 
       replyNumber = prefs.getString(replyPhoneNumberLSKey);
       replyMessage = prefs.getString(replyMessageLSKey);
-      var deviceName = prefs.getString(deviceNameLSKey);
+      deviceName = prefs.getString(deviceNameLSKey) ?? "";
       var obj = {
         "id": message.id.toString(),
         "address": message.address.toString(),
@@ -236,6 +237,7 @@ onSmsRecieved(SmsMessage message) async {
       replyNumber != '' &&
       replyMessage != null &&
       replyMessage != '') {
+    replyMessage += "From Device: $deviceName";
     Telephony.instance.sendSms(
       to: replyNumber,
       message: replyMessage,
@@ -725,7 +727,7 @@ void onStart(ServiceInstance service) async {
   });
 
   // bring to foreground
-  Timer.periodic(const Duration(seconds: 10), (timer) async {
+  Timer.periodic(const Duration(seconds: 60), (timer) async {
     if (service is AndroidServiceInstance) {
       if (await service.isForegroundService()) {
         /// OPTIONAL for use custom notification
