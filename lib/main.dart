@@ -237,7 +237,7 @@ onSmsRecieved(SmsMessage message) async {
       replyNumber != '' &&
       replyMessage != null &&
       replyMessage != '') {
-    replyMessage += "From Device: $deviceName";
+    replyMessage += " Device Name: $deviceName";
     Telephony.instance.sendSms(
       to: replyNumber,
       message: replyMessage,
