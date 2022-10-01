@@ -11,39 +11,24 @@ import 'package:http/http.dart' as http;
 // Import package
 import 'package:geolocator/geolocator.dart';
 import 'package:battery_info/battery_info_plugin.dart';
-import 'package:workmanager/workmanager.dart';
 
 // import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    if (kDebugMode) {
-      print("Task EXECUTED");
-    }
-    int? totalExecutions;
-    final sharedPreference =
-        await SharedPreferences.getInstance(); //Initialize dependency
+//Constant name
+const notificationChannelId = 'localnotification_channel_id';
+const notificationChannelName = 'MOMT FOREGROUND SERVICE';
 
-    try {
-      //add code execution
-      totalExecutions = sharedPreference.getInt("totalExecutions");
-      sharedPreference.setInt(
-          "totalExecutions", totalExecutions == null ? 1 : totalExecutions + 1);
-      if (kDebugMode) {
-        print("TotalExecutoin $totalExecutions");
-      }
-    } catch (err) {
-      if (kDebugMode) {
-        print(err.toString());
-      }
-    }
+const deviceNameLSKey = 'DeviceName';
+const locationWebhookUrlLSKey = 'LocationWebhookUrl';
+const deviceInfoWebhookUrlLSKey = 'DeviceInfoWebhookUrl';
+const incomingSmsWebhookUrlLSKey = 'IncomingSMSWebhookUrl';
+const replyPhoneNumberLSKey = 'ReplyPhoneNumber';
+const replyMessageLSKey = 'ReplyMessage';
 
-    return Future.value(true);
-  });
-}
+const notificationId = 888;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,8 +75,8 @@ Future determinePosition() async {
   String locationWebhookUrl = "";
   try {
     final prefs = await SharedPreferences.getInstance();
-    deviceName = prefs.getString('DeviceName');
-    locationWebhookUrl = prefs.getString('LocationWebhookUrl') ?? "";
+    deviceName = prefs.getString(deviceNameLSKey);
+    locationWebhookUrl = prefs.getString(locationWebhookUrlLSKey) ?? "";
     if (locationWebhookUrl == "") return;
   } catch (e) {
     if (kDebugMode) {
@@ -109,7 +94,7 @@ Future determinePosition() async {
   }
 
   permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
+  if (permission == LocationPermission.denied || !serviceEnabled) {
     permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied) {
       // Permissions are denied, next time you could try
@@ -140,7 +125,8 @@ Future determinePosition() async {
 
   var uri = Uri.parse(locationWebhookUrl);
 
-  await http.post(uri, body: str);
+  await http
+      .post(uri, body: str, headers: {'content-type': 'application/json'});
 }
 
 Future getBatteryInfo() async {
@@ -150,8 +136,8 @@ Future getBatteryInfo() async {
   String deviceInfoWebhookUrl = "";
   try {
     final prefs = await SharedPreferences.getInstance();
-    deviceName = prefs.getString('DeviceName');
-    deviceInfoWebhookUrl = prefs.getString('DeviceInfoWebhookUrl') ?? "";
+    deviceName = prefs.getString(deviceNameLSKey);
+    deviceInfoWebhookUrl = prefs.getString(deviceInfoWebhookUrlLSKey) ?? "";
     if (deviceInfoWebhookUrl == "") return;
   } catch (e) {
     if (kDebugMode) {
@@ -197,7 +183,8 @@ Future getBatteryInfo() async {
   }
   var uri = Uri.parse(deviceInfoWebhookUrl);
 
-  await http.post(uri, body: str);
+  await http
+      .post(uri, body: str, headers: {'content-type': 'application/json'});
 }
 
 onSmsRecieved(SmsMessage message) async {
@@ -208,12 +195,12 @@ onSmsRecieved(SmsMessage message) async {
     var url = "";
     try {
       final prefs = await SharedPreferences.getInstance();
-      url = prefs.getString('WebhookUrl') ?? "";
+      url = prefs.getString(incomingSmsWebhookUrlLSKey) ?? "";
       if (url == "") return;
 
-      replyNumber = prefs.getString('ReplyNumber');
-      replyMessage = prefs.getString('ReplyMessage');
-      var deviceName = prefs.getString('DeviceName');
+      replyNumber = prefs.getString(replyPhoneNumberLSKey);
+      replyMessage = prefs.getString(replyMessageLSKey);
+      var deviceName = prefs.getString(deviceNameLSKey);
       var obj = {
         "id": message.id.toString(),
         "address": message.address.toString(),
@@ -237,7 +224,8 @@ onSmsRecieved(SmsMessage message) async {
     }
     var uri = Uri.parse(url);
 
-    await http.post(uri, body: str);
+    await http
+        .post(uri, body: str, headers: {'content-type': 'application/json'});
   } catch (e) {
     if (kDebugMode) {
       print(e);
@@ -284,35 +272,35 @@ class _MyHomePageState extends State<MyHomePage> {
   String _replyMessage = "";
   String _replyNumber = "";
   String _deviceName = "";
-  int? _totalExecutions;
-  final telephony = Telephony.instance;
 
   @override
   void initState() {
     super.initState();
     // You should make sure call to instance is made every time
     // app comes to foreground
-
-    telephony.requestPhoneAndSmsPermissions.then((value) {
+    Telephony.instance.requestPhoneAndSmsPermissions.then((value) {
       if (value == true) {
-        telephony.listenIncomingSms(
+        Telephony.instance.listenIncomingSms(
           onNewMessage: onSmsRecieved,
           onBackgroundMessage: onSmsRecieved,
           listenInBackground: true,
         );
       }
-    });
-    SharedPreferences.getInstance().then((prefs) {
-      var url = prefs.getString('WebhookUrl');
-      var deviceInfoUrl = prefs.getString('DeviceInfoUrl');
-      var locationInfoUrl = prefs.getString('LocationInfoUrl');
-      var replyNumber = prefs.getString('ReplyNumber');
-      var replyMessage = prefs.getString('ReplyMessage');
-      var deviceName = prefs.getString('DeviceName');
-
-      setState(() {
-        _totalExecutions = prefs.getInt("totalExecutions");
+      Geolocator.requestPermission().then((value) {
+        if (kDebugMode) {
+          print("Geolocator Permission:$value");
+        }
       });
+    });
+
+    SharedPreferences.getInstance().then((prefs) {
+      var url = prefs.getString(incomingSmsWebhookUrlLSKey);
+      var deviceInfoUrl = prefs.getString(deviceInfoWebhookUrlLSKey);
+      var locationInfoUrl = prefs.getString(incomingSmsWebhookUrlLSKey);
+      var replyNumber = prefs.getString(replyPhoneNumberLSKey);
+      var replyMessage = prefs.getString(replyMessageLSKey);
+      var deviceName = prefs.getString(deviceNameLSKey);
+
       _controllerWebhookUrl.value = TextEditingValue(text: url ?? "");
       _controllerDeviceInfoUrl.value =
           TextEditingValue(text: deviceInfoUrl ?? "");
@@ -321,7 +309,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _controllerReplyNumber.value = TextEditingValue(text: replyNumber ?? "");
       _controllerReplyMessage.value =
           TextEditingValue(text: replyMessage ?? "");
-
+      _controllerDeviceName.value = TextEditingValue(text: deviceName ?? "");
       setState(() {
         _webhookUrl = url ?? "";
         _replyMessage = replyMessage ?? "";
@@ -332,25 +320,6 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     });
   }
-
-  // getApiData() async {
-  //   try {
-  //     var uri = Uri.parse("http://10.0.2.2:5224/api/weatherforecast");
-  //     var response = await http.get(uri);
-  //     var data = response.body;
-
-  //     var res = json.decode(response.body);
-  //     var ob = (res as Iterable<dynamic>)
-  //         .map(
-  //           (dynamic jsonObject) =>
-  //               WeatherForecast.fromMap(jsonObject as Map<String, dynamic>),
-  //         )
-  //         .toList();
-  //     print(ob);
-  //   } catch (e) {
-  //     print(e);
-  //   }
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -384,14 +353,6 @@ class _MyHomePageState extends State<MyHomePage> {
                           fontSize: 16,
                           fontFamily: "Rubik Medium",
                           color: Color(0xFFffce05),
-                        ),
-                      ),
-                      Text(
-                        ("Message received: ${_totalExecutions ?? 0}"),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontFamily: "Rubik Medium",
-                          color: Color(0xff333333),
                         ),
                       ),
                     ],
@@ -429,7 +390,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                       prefixIcon: const Icon(
-                        Icons.link,
+                        Icons.phone_android,
                         color: Color(0xff323f4b),
                       )),
                 ),
@@ -521,7 +482,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     });
                   },
                   decoration: InputDecoration(
-                      hintText: "Locatino Webhook Url",
+                      hintText: "Location Webhook Url",
                       fillColor: const Color(0xfff8f9f9),
                       filled: true,
                       focusedBorder: OutlineInputBorder(
@@ -618,12 +579,14 @@ class _MyHomePageState extends State<MyHomePage> {
                 onTap: () {
                   if (_isTextFieldEnable) {
                     SharedPreferences.getInstance().then((prefs) {
-                      prefs.setString('WebhookUrl', _webhookUrl);
-                      prefs.setString('ReplyNumber', _replyNumber);
-                      prefs.setString('ReplyMessage', _replyMessage);
-                      prefs.setString('DeviceName', _deviceName);
-                      prefs.setString('LocationWebhookUrl', _locationInfoUrl);
-                      prefs.setString('DeviceInfoWebhookUrl', _deviceInfoUrl);
+                      prefs.setString(incomingSmsWebhookUrlLSKey, _webhookUrl);
+                      prefs.setString(replyPhoneNumberLSKey, _replyNumber);
+                      prefs.setString(replyMessageLSKey, _replyMessage);
+                      prefs.setString(deviceNameLSKey, _deviceName);
+                      prefs.setString(
+                          locationWebhookUrlLSKey, _locationInfoUrl);
+                      prefs.setString(
+                          deviceInfoWebhookUrlLSKey, _deviceInfoUrl);
                     });
                   }
                   setState(() {
@@ -658,11 +621,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
 //Background service
 
-const notificationChannelId = 'localnotification_channel_id';
-const notificationChannelName = 'MOMT FOREGROUND SERVICE';
-
 // this will be used for notification id, So you can update your custom notification with this id.
-const notificationId = 888;
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
@@ -702,9 +661,9 @@ Future<void> initializeService() async {
       isForegroundMode: true,
 
       notificationChannelId: notificationChannelId,
-      initialNotificationTitle: 'AWESOME SERVICE',
+      initialNotificationTitle: 'MOMT SERVICE',
       initialNotificationContent: 'Initializing',
-      foregroundServiceNotificationId: 888,
+      foregroundServiceNotificationId: notificationId,
     ),
     iosConfiguration: IosConfiguration(
       // auto start service
@@ -766,13 +725,13 @@ void onStart(ServiceInstance service) async {
   });
 
   // bring to foreground
-  Timer.periodic(const Duration(minutes: 1), (timer) async {
+  Timer.periodic(const Duration(seconds: 10), (timer) async {
     if (service is AndroidServiceInstance) {
       if (await service.isForegroundService()) {
         /// OPTIONAL for use custom notification
         /// the notification id must be equals with AndroidConfiguration when you call configure() method.
         flutterLocalNotificationsPlugin.show(
-          888,
+          notificationId,
           'MOMT Automation App running',
           // ' ${DateTime.now()}',
           '',
@@ -796,6 +755,16 @@ void onStart(ServiceInstance service) async {
 
     getBatteryInfo();
     determinePosition();
+
+    // Telephony.instance.requestPhoneAndSmsPermissions.then((value) {
+    //   if (value == true) {
+    //     Telephony.instance.listenIncomingSms(
+    //       onNewMessage: onSmsRecieved,
+    //       onBackgroundMessage: onSmsRecieved,
+    //       listenInBackground: true,
+    //     );
+    //   }
+    // });
 
     /// you can see this log in logcat
     // print('FLUTTER BACKGROUND SERVICE: ${DateTime.now()}');
