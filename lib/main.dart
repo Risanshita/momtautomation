@@ -36,19 +36,6 @@ void main() async {
   ////flutter_background_service
   await initializeService();
 
-  ////Work manager
-  // await Workmanager().initialize(
-  //     callbackDispatcher, // The top level function, aka callbackDispatcher
-  //     isInDebugMode:
-  //         true // If enabled it will post a notification whenever the task is running. Handy for debugging tasks
-  //     );
-  // await Workmanager().registerPeriodicTask(
-  //   "task-background-work",
-  //   "task-background-work",
-  //   initialDelay: const Duration(seconds: 15),
-  //   frequency: const Duration(minutes: 15),
-  // );
-
   runApp(const MyApp());
 }
 
@@ -64,188 +51,6 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: const MyHomePage(title: 'MOMT Automation'),
-    );
-  }
-}
-
-Future determinePosition() async {
-  bool serviceEnabled;
-  LocationPermission permission;
-  String? deviceName = "";
-  String locationWebhookUrl = "";
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    deviceName = prefs.getString(deviceNameLSKey);
-    locationWebhookUrl = prefs.getString(locationWebhookUrlLSKey) ?? "";
-    if (locationWebhookUrl == "") return;
-  } catch (e) {
-    if (kDebugMode) {
-      print(e);
-    }
-  }
-
-  // Test if location services are enabled.
-  serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (!serviceEnabled) {
-    // Location services are not enabled don't continue
-    // accessing the position and request users of the
-    // App to enable the location services.
-    return Future.error('Location services are disabled.');
-  }
-
-  permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied || !serviceEnabled) {
-    permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) {
-      // Permissions are denied, next time you could try
-      // requesting permissions again (this is also where
-      // Android's shouldShowRequestPermissionRationale
-      // returned true. According to Android guidelines
-      // your App should show an explanatory UI now.
-      return Future.error('Location permissions are denied');
-    }
-  }
-
-  if (permission == LocationPermission.deniedForever) {
-    // Permissions are denied forever, handle appropriately.
-    return Future.error(
-        'Location permissions are permanently denied, we cannot request permissions.');
-  }
-
-  // When we reach here, permissions are granted and we can
-  // continue accessing the position of the device.
-  var res = await Geolocator.getCurrentPosition();
-  var json = res.toJson();
-  json.putIfAbsent('deviceName', () => {'deviceName': deviceName});
-
-  var str = jsonEncode(json);
-  if (kDebugMode) {
-    print(str);
-  }
-
-  var uri = Uri.parse(locationWebhookUrl);
-
-  await http
-      .post(uri, body: str, headers: {'content-type': 'application/json'});
-}
-
-Future getBatteryInfo() async {
-  Map<String, dynamic> batteryInfo = <String, dynamic>{};
-  String str = "";
-  String? deviceName = "";
-  String deviceInfoWebhookUrl = "";
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    deviceName = prefs.getString(deviceNameLSKey);
-    deviceInfoWebhookUrl = prefs.getString(deviceInfoWebhookUrlLSKey) ?? "";
-    if (deviceInfoWebhookUrl == "") return;
-  } catch (e) {
-    if (kDebugMode) {
-      print(e);
-    }
-  }
-  if (Platform.isAndroid) {
-    var androidBatteryInfo = await BatteryInfoPlugin().androidBatteryInfo;
-    if (androidBatteryInfo != null) {
-      batteryInfo = <String, dynamic>{
-        'batteryLevel': androidBatteryInfo.batteryLevel,
-        'batteryCapacity': androidBatteryInfo.batteryCapacity,
-        'chargeTimeRemaining': androidBatteryInfo.chargeTimeRemaining,
-        'chargingStatus': androidBatteryInfo.chargingStatus.toString(),
-        'currentAverage': androidBatteryInfo.currentAverage,
-        'currentNow': androidBatteryInfo.currentNow,
-        'health': androidBatteryInfo.health,
-        'pluggedStatus': androidBatteryInfo.pluggedStatus,
-        'present': androidBatteryInfo.present,
-        'remainingEnergy': androidBatteryInfo.remainingEnergy,
-        'scale': androidBatteryInfo.scale,
-        'technology': androidBatteryInfo.technology,
-        'temperature': androidBatteryInfo.temperature,
-        'voltage': androidBatteryInfo.voltage,
-        'deviceName': deviceName,
-      };
-      str = jsonEncode(batteryInfo);
-    }
-  } else if (Platform.isIOS) {
-    var iosBatteryInfo = await BatteryInfoPlugin().iosBatteryInfo;
-    if (iosBatteryInfo != null) {
-      batteryInfo = <String, dynamic>{
-        'batteryLevel': iosBatteryInfo.batteryLevel,
-        'chargingStatus': iosBatteryInfo.getChargingStatus.toString(),
-        'deviceName': deviceName,
-      };
-
-      str = jsonEncode(batteryInfo);
-    }
-  }
-  if (kDebugMode) {
-    print(str);
-  }
-  var uri = Uri.parse(deviceInfoWebhookUrl);
-
-  await http
-      .post(uri, body: str, headers: {'content-type': 'application/json'});
-}
-
-onSmsRecieved(SmsMessage message) async {
-  String? replyNumber;
-  String? replyMessage;
-  String? str;
-  String deviceName = "";
-  try {
-    var url = "";
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      url = prefs.getString(incomingSmsWebhookUrlLSKey) ?? "";
-      if (url == "") return;
-
-      replyNumber = prefs.getString(replyPhoneNumberLSKey);
-      replyMessage = prefs.getString(replyMessageLSKey);
-      deviceName = prefs.getString(deviceNameLSKey) ?? "";
-      var obj = {
-        "id": message.id.toString(),
-        "address": message.address.toString(),
-        "body": message.body.toString(),
-        "date": message.date.toString(),
-        "dateSent": message.dateSent.toString(),
-        "read": message.read.toString(),
-        "seen": message.seen.toString(),
-        "subject": message.subject.toString(),
-        "subscriptionId": message.subscriptionId.toString(),
-        "type": message.type.toString(),
-        "status": message.status.toString(),
-        "serviceCenterAddress": message.serviceCenterAddress.toString(),
-        "deviceName": deviceName
-      };
-      str = jsonEncode(obj);
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-    }
-    var uri = Uri.parse(url);
-
-    await http
-        .post(uri, body: str, headers: {'content-type': 'application/json'});
-  } catch (e) {
-    if (kDebugMode) {
-      print(e);
-    }
-  }
-
-  if (replyNumber != null &&
-      replyNumber != '' &&
-      replyMessage != null &&
-      replyMessage != '') {
-    replyMessage += " Device Name: $deviceName";
-    Telephony.instance.sendSms(
-      to: replyNumber,
-      message: replyMessage,
-      statusListener: (SendStatus status) {
-        if (kDebugMode) {
-          print(status);
-        }
-      },
     );
   }
 }
@@ -617,6 +422,188 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+Future determinePosition() async {
+  bool serviceEnabled;
+  LocationPermission permission;
+  String? deviceName = "";
+  String locationWebhookUrl = "";
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    deviceName = prefs.getString(deviceNameLSKey);
+    locationWebhookUrl = prefs.getString(locationWebhookUrlLSKey) ?? "";
+    if (locationWebhookUrl == "") return;
+  } catch (e) {
+    if (kDebugMode) {
+      print(e);
+    }
+  }
+
+  // Test if location services are enabled.
+  serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    // Location services are not enabled don't continue
+    // accessing the position and request users of the
+    // App to enable the location services.
+    return Future.error('Location services are disabled.');
+  }
+
+  permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied || !serviceEnabled) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      // Permissions are denied, next time you could try
+      // requesting permissions again (this is also where
+      // Android's shouldShowRequestPermissionRationale
+      // returned true. According to Android guidelines
+      // your App should show an explanatory UI now.
+      return Future.error('Location permissions are denied');
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    // Permissions are denied forever, handle appropriately.
+    return Future.error(
+        'Location permissions are permanently denied, we cannot request permissions.');
+  }
+
+  // When we reach here, permissions are granted and we can
+  // continue accessing the position of the device.
+  var res = await Geolocator.getCurrentPosition();
+  var json = res.toJson();
+  json.putIfAbsent('deviceName', () => {'deviceName': deviceName});
+
+  var str = jsonEncode(json);
+  if (kDebugMode) {
+    print(str);
+  }
+
+  var uri = Uri.parse(locationWebhookUrl);
+
+  await http
+      .post(uri, body: str, headers: {'content-type': 'application/json'});
+}
+
+Future getBatteryInfo() async {
+  Map<String, dynamic> batteryInfo = <String, dynamic>{};
+  String str = "";
+  String? deviceName = "";
+  String deviceInfoWebhookUrl = "";
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    deviceName = prefs.getString(deviceNameLSKey);
+    deviceInfoWebhookUrl = prefs.getString(deviceInfoWebhookUrlLSKey) ?? "";
+    if (deviceInfoWebhookUrl == "") return;
+  } catch (e) {
+    if (kDebugMode) {
+      print(e);
+    }
+  }
+  if (Platform.isAndroid) {
+    var androidBatteryInfo = await BatteryInfoPlugin().androidBatteryInfo;
+    if (androidBatteryInfo != null) {
+      batteryInfo = <String, dynamic>{
+        'batteryLevel': androidBatteryInfo.batteryLevel,
+        'batteryCapacity': androidBatteryInfo.batteryCapacity,
+        'chargeTimeRemaining': androidBatteryInfo.chargeTimeRemaining,
+        'chargingStatus': androidBatteryInfo.chargingStatus.toString(),
+        'currentAverage': androidBatteryInfo.currentAverage,
+        'currentNow': androidBatteryInfo.currentNow,
+        'health': androidBatteryInfo.health,
+        'pluggedStatus': androidBatteryInfo.pluggedStatus,
+        'present': androidBatteryInfo.present,
+        'remainingEnergy': androidBatteryInfo.remainingEnergy,
+        'scale': androidBatteryInfo.scale,
+        'technology': androidBatteryInfo.technology,
+        'temperature': androidBatteryInfo.temperature,
+        'voltage': androidBatteryInfo.voltage,
+        'deviceName': deviceName,
+      };
+      str = jsonEncode(batteryInfo);
+    }
+  } else if (Platform.isIOS) {
+    var iosBatteryInfo = await BatteryInfoPlugin().iosBatteryInfo;
+    if (iosBatteryInfo != null) {
+      batteryInfo = <String, dynamic>{
+        'batteryLevel': iosBatteryInfo.batteryLevel,
+        'chargingStatus': iosBatteryInfo.getChargingStatus.toString(),
+        'deviceName': deviceName,
+      };
+
+      str = jsonEncode(batteryInfo);
+    }
+  }
+  if (kDebugMode) {
+    print(str);
+  }
+  var uri = Uri.parse(deviceInfoWebhookUrl);
+
+  await http
+      .post(uri, body: str, headers: {'content-type': 'application/json'});
+}
+
+onSmsRecieved(SmsMessage message) async {
+  String? replyNumber;
+  String? replyMessage;
+  String? str;
+  String deviceName = "";
+  try {
+    var url = "";
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      url = prefs.getString(incomingSmsWebhookUrlLSKey) ?? "";
+      if (url == "") return;
+
+      replyNumber = prefs.getString(replyPhoneNumberLSKey);
+      replyMessage = prefs.getString(replyMessageLSKey);
+      deviceName = prefs.getString(deviceNameLSKey) ?? "";
+      var obj = {
+        "id": message.id.toString(),
+        "address": message.address.toString(),
+        "body": message.body.toString(),
+        "date": message.date.toString(),
+        "dateSent": message.dateSent.toString(),
+        "read": message.read.toString(),
+        "seen": message.seen.toString(),
+        "subject": message.subject.toString(),
+        "subscriptionId": message.subscriptionId.toString(),
+        "type": message.type.toString(),
+        "status": message.status.toString(),
+        "serviceCenterAddress": message.serviceCenterAddress.toString(),
+        "deviceName": deviceName
+      };
+      str = jsonEncode(obj);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+    }
+    var uri = Uri.parse(url);
+
+    await http
+        .post(uri, body: str, headers: {'content-type': 'application/json'});
+  } catch (e) {
+    if (kDebugMode) {
+      print(e);
+    }
+  }
+
+  if (replyNumber != null &&
+      replyNumber != '' &&
+      replyMessage != null &&
+      replyMessage != '') {
+    replyMessage += " Device Name: $deviceName";
+    Telephony.instance.sendSms(
+      to: replyNumber,
+      message: replyMessage,
+      statusListener: (SendStatus status) {
+        if (kDebugMode) {
+          print(status);
+        }
+      },
     );
   }
 }
