@@ -103,7 +103,7 @@ class _MyHomePageState extends State<MyHomePage> {
     SharedPreferences.getInstance().then((prefs) {
       var url = prefs.getString(incomingSmsWebhookUrlLSKey);
       var deviceInfoUrl = prefs.getString(deviceInfoWebhookUrlLSKey);
-      var locationInfoUrl = prefs.getString(incomingSmsWebhookUrlLSKey);
+      var locationInfoUrl = prefs.getString(locationWebhookUrlLSKey);
       var replyNumber = prefs.getString(replyPhoneNumberLSKey);
       var replyMessage = prefs.getString(replyMessageLSKey);
       var deviceName = prefs.getString(deviceNameLSKey);
