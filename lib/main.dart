@@ -474,7 +474,7 @@ Future determinePosition() async {
   // continue accessing the position of the device.
   var res = await Geolocator.getCurrentPosition();
   var json = res.toJson();
-  json.putIfAbsent('deviceName', () => {'deviceName': deviceName});
+  json.putIfAbsent('deviceName', () => deviceName);
 
   var str = jsonEncode(json);
   if (kDebugMode) {
