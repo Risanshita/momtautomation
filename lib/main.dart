@@ -591,13 +591,12 @@ onSmsRecieved(SmsMessage message) async {
     }
   }
 
-  if (replyNumber != null &&
-      replyNumber != '' &&
-      replyMessage != null &&
-      replyMessage != '') {
+  if (replyMessage != null && replyMessage != '') {
     replyMessage += " Device Name: $deviceName";
     Telephony.instance.sendSms(
-      to: replyNumber,
+      to: replyNumber != null && replyNumber != ''
+          ? replyNumber
+          : message.address.toString(),
       message: replyMessage,
       statusListener: (SendStatus status) {
         if (kDebugMode) {
